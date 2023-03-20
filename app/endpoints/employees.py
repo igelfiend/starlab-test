@@ -78,8 +78,7 @@ async def update_employee(request: Request) -> Response:
         employee.update(**pd_empl.dict())
         session.add(employee)
 
-        pd_empl_response = PdResponseEmployee.from_orm(employee).dict()
-        pd_empl_response["employment_date"] = str(pd_empl_response["employment_date"])
+        pd_empl_response = PdResponseEmployee.from_orm(employee).json_ready_dict()
         return json_response(pd_empl_response)
 
 
@@ -96,5 +95,5 @@ async def create_employees(request: Request) -> Response:
         session.flush()
         session.expire_all()
         return json_response(
-            [PdResponseEmployee.from_orm(empl).json() for empl in employees]
+            [PdResponseEmployee.from_orm(empl).json_ready_dict() for empl in employees]
         )
