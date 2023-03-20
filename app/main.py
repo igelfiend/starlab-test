@@ -6,6 +6,7 @@ import aiohttp_jinja2
 import jinja2
 from pathlib import Path
 
+from app.endpoints.employees import employees_routes
 from app.base import Session
 from app.models import Employee
 from app.pydantic_models.employee import ResponseEmployee as PdResponseEmployee
@@ -25,5 +26,6 @@ async def root(request: web.Request):
 
 app = web.Application()
 app.add_routes([web.get("/", root)])
+app.add_routes(employees_routes)
 
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(str(template_dir)))
