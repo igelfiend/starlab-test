@@ -19,7 +19,7 @@ All code are packed into docker, so you could hit `./initialize.bash` and everyt
 For execution you could either run `./run.bash` or do it manually with `docker-compose up starlab-test-app`.
 
 In case of `./run.bash` pgadmin will be executed too.
-Default address for app is [localhost] or [127.0.0.1](http://127.0.0.1)
+Default address for app is [localhost](http://localhost) or [127.0.0.1](http://127.0.0.1)
 
 ## Data surf
 
