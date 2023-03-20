@@ -76,74 +76,6 @@
         <div>
     </body>
     <script>
-        selected_empl = null
-        selection_enabled = true
-        employee_data = null
-
-        employee_form = document.getElementById("employee_info")
-        new_sub_form = document.getElementById("new_subordinate")
-
-        function makeDiv(className_) {
-            let d = document.createElement("div")
-            d.className = className_
-            return d
-        }
-
-        function getTreeNodeId(node_id) {
-            return `tree_node_${node_id}`
-        }
-
-        function hideInfoPanel(panel) {
-            panel.classList.remove("shown_block")
-            panel.classList.add("hidden_block")
-            panel.classList.remove("success_block")
-            panel.classList.remove("failure_block")
-        }
-
-        function disableForm(form) {
-            var elements = form.elements;
-            for (let element of elements) {
-                element.disabled = true;
-            }
-        }
-
-        function enableForm(form) {
-            var elements = form.elements;
-            for (let element of elements) {
-                element.disabled = false;
-            }
-        }
-
-        function blockInterface() {
-            disableForm(employee_form)
-            selection_enabled = false
-        }
-
-        function unblockInterface() {
-            enableForm(employee_form)
-            selection_enabled = true
-        }
-
-        function showSuccess(successMessage) {
-            panel = document.getElementById("empl_info_block")
-            panel.innerHTML = successMessage
-            panel.classList.add("shown_block")
-            panel.classList.add("success_block")
-            setTimeout(() => {
-                hideInfoPanel(panel)
-            }, 3000)
-        }
-
-        function showFailure(failureMessage) {
-            panel = document.getElementById("empl_info_block")
-            panel.innerHTML = failureMessage
-            panel.classList.add("shown_block")
-            panel.classList.add("failure_block")
-            setTimeout(() => {
-                hideInfoPanel(panel)
-            }, 3000)
-        }
-
         function deepcopy(obj) {
             return JSON.parse(JSON.stringify(obj))
         }
@@ -158,186 +90,343 @@
             return formDataObj;
         }
 
-        function fillFormWithEmployeeData(empl_data) {
-            document.getElementById("info_first_name").value = empl_data.first_name
-            document.getElementById("info_last_name").value = empl_data.last_name
-            document.getElementById("info_position").value = empl_data.position
-            document.getElementById("info_employment_date").value = empl_data.employment_date
-            document.getElementById("info_salary").value = empl_data.salary
+        function makeDiv(className_) {
+            let d = document.createElement("div")
+            d.className = className_
+            return d
         }
 
-
-        function selectEmployee(node) {
-            if (selection_enabled === false) {
-                return
+        class EmploymentData {
+            rawData = []
+            mappedData = {}
+            constructor(data) {
+                this.rawData = data
+                this.mappedData = rowsToDictWithIds(data)
             }
-
-            let empl_id = node.getAttribute("node_id")
-            let empl_node_id = node.id
-
-            if (selected_empl !== null) {
-                prev_empl_id = getTreeNodeId(selected_empl)
-                document.querySelector(`#${prev_empl_id} > .node_title`).classList.remove("selected")
-            }
-            node.querySelector(".node_title").classList.add("selected")
-            selected_empl = empl_id
-
-            fillFormWithEmployeeData(employee_data[empl_id])
         }
+        
+        class Tree {
+            core = null
+            employmentData = null
+            selectedEmployee = null
+            selectionEnabled = true
 
-        function createNode(container, child_data) {
-            let base_div = makeDiv("node")
-            base_div.id = `tree_node_${child_data.id}`
-            base_div.setAttribute("node_id", child_data.id)
-            container.appendChild(base_div)
+            constructor(core) {
+                this.core = core
+                this.employmentData = core.employmentData
 
-            let title_div = makeDiv("node_title")
-            title_div.innerHTML = `${child_data.first_name} ${child_data.last_name}, ${child_data.position}`
-            title_div.addEventListener("click", () => {
-                selectEmployee(base_div)
-            })
-            base_div.appendChild(title_div)
+                let baseDiv = document.getElementById("tree_div")
+                let treeData = this.makeTreeData(this.employmentData.rawData)
+                this.createNode(baseDiv, treeData)
+            }
 
-            let subs_div = makeDiv("subnodes")
-            base_div.appendChild(subs_div)
+            makeTreeData(data) {
+                function makeTreeDataInternal(topElement, data) {
+                    let subordinates = []
+                    let employeeIds = Object.keys(data)
+                    for (let employeeId of employeeIds) {
+                        if (data[employeeId].chief_id == topElement.id) {
+                            subordinates.push(data[employeeId])
+                            delete data[employeeId]
+                        }
+                    }
+                    if (subordinates.length > 0) {
+                        subordinates = subordinates.map((sub) => (makeTreeDataInternal(sub, data)))
+                        topElement.subordinates = subordinates
+                    }
 
-            if (child_data.hasOwnProperty("subordinates")) {
-                for (let sub of child_data.subordinates) {
-                    createNode(subs_div, sub)
+                    return topElement
                 }
-            }
-        }
 
-        function makeTreeData(data) {
-            function makeTreeDataInternal(top_element, data) {
-                let subordinates = []
-                let empl_ids = Object.keys(data)
-                for (empl_id of empl_ids) {
-                    if (data[empl_id].chief_id == top_element.id) {
-                        subordinates.push(data[empl_id])
-                        delete data[empl_id]
+                let topChief = data.find((el) => (el.chief_id == null))
+                let mappedData = deepcopy(this.employmentData.mappedData)
+                delete mappedData[topChief.id]
+
+                return makeTreeDataInternal(topChief, mappedData)
+            }
+
+
+            getTitleForNode(nodeId) {
+                let data = this.employmentData.mappedData[nodeId]
+                return `${data.first_name} ${data.last_name}, ${data.position}`
+            }
+
+            getTreeNodeId(nodeId) {
+                return `tree_node_${nodeId}`
+            }
+
+
+            createNode(container, childData) {
+                let baseDiv = makeDiv("node")
+                baseDiv.id = this.getTreeNodeId(childData.id)
+                baseDiv.setAttribute("nodeId", childData.id)
+                container.appendChild(baseDiv)
+
+                let titleDiv = makeDiv("node_title")
+                titleDiv.innerHTML = this.getTitleForNode(childData.id)
+                titleDiv.addEventListener("click", () => {
+                    this.selectEmployee(baseDiv)
+                })
+                baseDiv.appendChild(titleDiv)
+
+                let subsDiv = makeDiv("subnodes")
+                baseDiv.appendChild(subsDiv)
+
+                if (childData.hasOwnProperty("subordinates")) {
+                    for (let sub of childData.subordinates) {
+                        this.createNode(subsDiv, sub)
                     }
                 }
-                if (subordinates.length > 0) {
-                    subordinates = subordinates.map((sub) => (makeTreeDataInternal(sub, data)))
-                    top_element.subordinates = subordinates
-                }
-
-                return top_element
             }
 
-            let mapped_data = rowsToDictWithIds(deepcopy(data))
-            let top_chief = data.find((el) => (el.chief_id == null))
-            delete mapped_data[top_chief.id]
-
-            return makeTreeDataInternal(top_chief, mapped_data)
-        }
-
-        function getTitleForNode(node_id) {
-            data = employee_data[node_id]
-            return `${data.first_name} ${data.last_name}, ${data.position}`
-        }
-
-        function updateTreeNodeTitle(node_id) {
-            new_title = getTitleForNode(node_id)
-            tree_node_id = getTreeNodeId(node_id)
-            document.querySelector(`#${tree_node_id} > .node_title`).innerHTML = new_title
-        }
-
-        function updateEmployee(){
-            let empl_form = document.getElementById("employee_info")
-            let form_data = new FormData(empl_form)
-            let form_data_obj = formDataToDict(form_data)
-
-            fetch(`/employees/${selected_empl}`, {
-                method: 'PATCH',
-                body: JSON.stringify(form_data_obj)
-            }).then((response) => {
-                if (response.ok) {
-                    return response.json()
-                }
-                throw new Error("failed")
-            }).then((data) => {
-                employee_data[selected_empl] = data
-                fillFormWithEmployeeData(data)
-                updateTreeNodeTitle(selected_empl)
-                showSuccess("EMPLOYEE UPDATED")
-            }).catch((error) => {
-                showFailure("UPDATE FAILED")
-                let data = employee_data[selected_empl]
-                fillFormWithEmployeeData(data)
-            })
-        }
-
-        function startSubordinateAddingProcess() {
-            if (selected_empl == null) {
-                return
+            updateTreeNodeTitle(nodeId) {
+                let newTitle = this.getTitleForNode(nodeId)
+                let treeNodeId = this.getTreeNodeId(nodeId)
+                document.querySelector(`#${treeNodeId} > .node_title`).innerHTML = newTitle
             }
-            blockInterface()
-            new_sub_form.classList.remove("hidden_block")
-            new_sub_form.classList.add("shown_block")
-        }
 
-        function endSubrodinateAddingProcess() {
-            unblockInterface()
-            new_sub_form.reset()
-            new_sub_form.classList.add("hidden_block")
-            new_sub_form.classList.remove("shown_block")
-        }
-
-
-        function addSubordinate() {
-            let form_data = new FormData(new_sub_form)
-            let form_data_obj = formDataToDict(form_data)
-            form_data_obj.chief_id = selected_empl
-            fetch("/employees", {
-                method: "POST",
-                body: JSON.stringify([form_data_obj])
-            })
-            .then((response) => {
-                if (response.ok) {
-                    showSuccess("SUBORDINATE ADDED")
-                    endSubrodinateAddingProcess()
-                    return response.json()
-                }
-                throw new Error("failed")
-            })
-            .then((data) => {
-                console.log("response data: ")
-                console.log(data)
-                //employee_data[selected_empl] = data
-                //fillFormWithEmployeeData(data)
-            })
-            .catch((error) => {
-                showFailure("ADDING FAILED")
-                endSubrodinateAddingProcess()
-            })
-        }
-
-        (function init() {
-            employee_form.addEventListener("submit", (event) => {
-                event.preventDefault()
-                if(selected_empl == null) {
+            selectEmployee(node) {
+                if (this.selectionEnabled === false) {
                     return
                 }
-                updateEmployee()
-            })
 
-            let add_sub_button = document.getElementById("info_add_subordinates")
-            add_sub_button.addEventListener("click", startSubordinateAddingProcess)
+                let employeeId = node.getAttribute("nodeId")
 
-            new_sub_form.addEventListener("submit", (event) => {
-                event.preventDefault()
-                addSubordinate()
-            })
-            let cancel_new_sub_button = document.getElementById("new_sub_cancel")
-            cancel_new_sub_button.addEventListener("click", endSubrodinateAddingProcess)
+                if (this.selectedEmployee !== null) {
+                    let prevEmployeeId = this.getTreeNodeId(this.selectedEmployee)
+                    document.querySelector(`#${prevEmployeeId} > .node_title`).classList.remove("selected")
+                }
+                node.querySelector(".node_title").classList.add("selected")
+                this.selectedEmployee = employeeId
 
+                this.core.infoWindow.updateFields(this.employmentData.mappedData[employeeId])
+            }
+
+            addSubordinate(employeeData) {
+                let subsDiv = document.querySelector(`#${this.getTreeNodeId(this.selectedEmployee)} > .subnodes`)
+                this.createNode(subsDiv, employeeData)
+            }
+
+            blockTree() {
+                this.selectionEnabled = false
+            }
+
+            unblockTree() {
+                this.selectionEnabled = true
+            }
+        }
+
+        class BaseFormWindow {
+            form = null
+            core = null
+            constructor(form, core) {
+                this.form = form
+                this.core = core
+            }
+
+            disableForm() {
+                var elements = this.form.elements;
+                for (let element of elements) {
+                    element.disabled = true;
+                }
+            }
+
+            enableForm() {
+                var elements = this.form.elements;
+                for (let element of elements) {
+                    element.disabled = false;
+                }
+            }
+
+            updateFields(data) {
+                Array.from(this.form.elements).forEach((input)=>{ 
+                    if (input.type == "text") {
+                        input.value = data[input.name]
+                    }
+                })
+            }
+
+            getData() {
+                let formData = new FormData(this.form)
+                return formDataToDict(formData)
+            }
+
+            hideForm() {
+                this.form.classList.add("hidden_block")
+                this.form.classList.remove("shown_block")
+            }
+
+            showForm() {
+                this.form.classList.remove("hidden_block")
+                this.form.classList.add("shown_block")
+            }
+
+            reset() {
+                this.form.reset()
+            }
+        }
+
+        class InfoWindow extends BaseFormWindow {
+            constructor(form, core) {
+                super(form, core)
+                form.addEventListener("submit", (event) => {
+                    event.preventDefault()
+                    let employeeToUpdate = this.core.tree.selectedEmployee
+                    if(employeeToUpdate == null) {
+                        return
+                    }
+                    core.updateEmployee(employeeToUpdate)
+                })
+
+                let addSubButton = document.getElementById("info_add_subordinates")
+                addSubButton.addEventListener("click", ()=>{
+                    this.core.startSubordinateAddingProcess()
+                })
+            }
+        }
+
+        class NewSubordinateWindow extends BaseFormWindow {
+            constructor(form, core)
+             {
+                super(form, core)
+                form.addEventListener("submit", (event) => {
+                    event.preventDefault()
+                    this.core.addSubordinate(this.getData())
+                })
+                let cancelNewSubButton = document.getElementById("new_sub_cancel")
+                cancelNewSubButton.addEventListener("click", () => {
+                    this.core.endSubrodinateAddingProcess();
+                })
+            }
+        }
+
+        class InfoPanel {
+            panel = null
+            constructor(panel) {
+                this.panel = panel
+            }
+
+            hideInfoPanel() {
+                this.panel.classList.remove("shown_block")
+                this.panel.classList.add("hidden_block")
+                this.panel.classList.remove("success_block")
+                this.panel.classList.remove("failure_block")
+            }
+            
+            showSuccess(successMessage) {
+                this.panel.innerHTML = successMessage
+                this.panel.classList.add("shown_block")
+                this.panel.classList.add("success_block")
+                setTimeout(() => {
+                    this.hideInfoPanel()
+                }, 3000)
+            }
+
+            showFailure(failureMessage) {
+                this.panel.innerHTML = failureMessage
+                this.panel.classList.add("shown_block")
+                this.panel.classList.add("failure_block")
+                setTimeout(() => {
+                    this.hideInfoPanel()
+                }, 3000)
+            }         
+        }
+
+        class Core {
+            employmentData = null
+            infoWindow = null
+            newSubWindow = null
+            tree = null
+            infoBox = null
+
+            constructor(data) {
+                this.employmentData = new EmploymentData(data)
+                this.infoWindow = new InfoWindow(document.getElementById("employee_info"), this)
+                this.tree = new Tree(this)
+                this.newSubWindow = new NewSubordinateWindow(document.getElementById("new_subordinate"), this)
+                this.infoBox = new InfoPanel(document.getElementById("empl_info_block"))
+            }
+
+            blockTreeAndInfo() {
+                this.tree.blockTree()
+                this.infoWindow.disableForm()
+            }
+
+            unblockTreeAndInfo() {
+                this.tree.unblockTree()
+                this.infoWindow.enableForm()
+            }
+
+            updateEmployee(employeeId){
+                let formDataObj = this.infoWindow.getData()
+
+                fetch(`/employees/${employeeId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(formDataObj)
+                }).then((response) => {
+                    if (response.ok) {
+                        return response.json()
+                    }
+                    throw new Error("failed")
+                }).then((data) => {
+                    this.employmentData.mappedData[employeeId] = data
+                    this.tree.updateTreeNodeTitle(employeeId)
+                    this.infoWindow.updateFields(data)
+                    this.infoBox.showSuccess("EMPLOYEE UPDATED")
+                }).catch((error) => {
+                    this.infoBox.showFailure("UPDATE FAILED")
+                    let data = this.employmentData.mappedData[employeeId]
+                    this.infoWindow.updateFields(data)
+                })
+            }
+
+            startSubordinateAddingProcess() {
+                if (this.tree.selectedEmployee == null) {
+                    return
+                }
+                this.blockTreeAndInfo()
+                this.newSubWindow.showForm()
+            }
+
+            endSubrodinateAddingProcess() {
+                this.unblockTreeAndInfo()
+                this.newSubWindow.reset()
+                this.newSubWindow.hideForm()
+            }
+
+            addSubordinate(formDataObj) {
+                formDataObj.chief_id = this.tree.selectedEmployee
+                fetch("/employees", {
+                    method: "POST",
+                    body: JSON.stringify([formDataObj])
+                })
+                .then((response) => {
+                    if (response.ok) {
+                        this.infoBox.showSuccess("SUBORDINATE ADDED")
+                        this.endSubrodinateAddingProcess()
+                        return response.json()
+                    }
+                    throw new Error("failed")
+                })
+                .then((data) => {
+                    let employeeData = data[0]
+                    this.employmentData.mappedData[employeeData.id] = employeeData
+                    this.tree.addSubordinate(employeeData)
+                })
+                .catch((error) => {
+                    this.infoBox.showFailure("ADDING FAILED")
+                    this.endSubrodinateAddingProcess()
+                })
+            }
+        }
+
+
+        core = null;
+
+        (function init() {
             let data = JSON.parse(`{{ data|safe }}`)
-            employee_data = rowsToDictWithIds(data)
-            let base_div = document.getElementById("tree_div")
-            let tree_data = makeTreeData(data)
-            createNode(base_div, tree_data)
+
+            core = new Core(data);
         })()
     </script>
 <html>
