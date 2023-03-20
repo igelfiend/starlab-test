@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Starlab App</title>
+        <style type="text/css">
+            #container {height: 100%; width:100%; font-size: 0;}
+            .container_block {
+                display: inline-block;
+                *display: inline;
+                zoom: 1;
+                vertical-align: top;
+                font-size: 20px;
+            }
+            .info_block {
+                height: 50px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            .spacer { width: 1%; }
+            #tree_div {width: 32%; }
+            #form_div {width: 32%; }
+            #new_sub_div {width: 32%; }
+            .selected {background-color: aquamarine; }
+            .subnodes {padding-left: 10px; }
+            .hidden_block {visibility: hidden; }
+            .shown_block {visibility: visible; }
+            .failure_block {background-color: red; }
+            .success_block {background-color: darkseagreen; }
+            input {width: 100%; }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <div id="tree_div" class="container_block"></div>
+            <div class="container_block spacer"></div>
+            <div id="form_div" class="container_block">
+                <span id="form_title">Employee info</span>
+                <form id="employee_info">
+                    <label for="f_first_name">First name:</label><br/>
+                    <input type="text" id="info_first_name" name="first_name"/><br/>
+                    <label for="f_last_name">Last name:</label><br/>
+                    <input type="text" id="info_last_name" name="last_name"><br/>
+                    <label for="f_position">Position:</label><br/>
+                    <input type="text" id="info_position" name="position"><br/>
+                    <label for="f_employment_date">Employment date:</label><br/>
+                    <input type="text" id="info_employment_date" name="employment_date"><br/>
+                    <label for="f_salary">Salary:</label><br/>
+                    <input type="text" id="info_salary" name="salary"><br/>
+                    <button type="button" id="info_add_subordinates">Add subordinate</button>
+                    <button type="submit">Update</button><br/>
+                </form>
+                <div class="info_block" id="empl_info_block"></div>
+            </div>
+            <div class="container_blockspacer"></div>
+            <div id="new_sub_div" class="container_block hidden_block">
+                <span id="form_title">New subordinate:</span>
+                <form id="new_subordinate">
+                    <label for="f_first_name">First name:</label><br/>
+                    <input type="text" id="new_sub_first_name" name="first_name"/><br/>
+                    <label for="f_last_name">Last name:</label><br/>
+                    <input type="text" id="new_sub_last_name" name="last_name"><br/>
+                    <label for="f_position">Position:</label><br/>
+                    <input type="text" id="new_sub_position" name="position"><br/>
+                    <label for="f_employment_date">Employment date:</label><br/>
+                    <input type="text" id="new_sub_employment_date" name="employment_date"><br/>
+                    <label for="f_salary">Salary:</label><br/>
+                    <input type="text" id="new_sub_salary" name="salary"><br/>
+                    <button type="button" id="new_sub_cancel">Cancel</button>
+                    <button type="submit">Save</button><br/>
+                </form>
+            </div>
+        <div>
+    </body>
+    <script>
+        selected_empl = null
+        selection_enabled = true
+        employee_data = null
+
+        employee_form = document.getElementById("employee_info")
+        new_sub_form = document.getElementById("new_subordinate")
+
+        function makeDiv(className_) {
+            let d = document.createElement("div")
+            d.className = className_
+            return d
+        }
+
+        function getTreeNodeId(node_id) {
+            return `tree_node_${node_id}`
+        }
+
+        function hideInfoPanel(panel) {
+            panel.classList.remove("shown_block")
+            panel.classList.add("hidden_block")
+            panel.classList.remove("success_block")
+            panel.classList.remove("failure_block")
+        }
+
+        function disableForm(form) {
+            var elements = form.elements;
+            for (let element of elements) {
+                element.disabled = true;
+            }
+        }
+
+        function enableForm(form) {
+            var elements = form.elements;
+            for (let element of elements) {
+                element.disabled = false;
+            }
+        }
+
+        function blockInterface() {
+            disableForm(employee_form)
+            selection_enabled = false
+        }
+
+        function unblockInterface() {
+            enableForm(employee_form)
+            selection_enabled = true
+        }
+
+        function showSuccess(successMessage) {
+            panel = document.getElementById("empl_info_block")
+            panel.innerHTML = successMessage
+            panel.classList.add("shown_block")
+            panel.classList.add("success_block")
+            setTimeout(() => {
+                hideInfoPanel(panel)
+            }, 3000)
+        }
+
+        function showFailure(failureMessage) {
+            panel = document.getElementById("empl_info_block")
+            panel.innerHTML = failureMessage
+            panel.classList.add("shown_block")
+            panel.classList.add("failure_block")
+            setTimeout(() => {
+                hideInfoPanel(panel)
+            }, 3000)
+        }
+
+        function deepcopy(obj) {
+            return JSON.parse(JSON.stringify(obj))
+        }
+
+        function rowsToDictWithIds(data) {
+            return data.reduce((a, v) => ({ ...a, [v.id]: v}), {})
+        }
+
+        function formDataToDict(formData) {
+            let formDataObj = {}
+            formData.forEach((value, key) => (formDataObj[key] = value));
+            return formDataObj;
+        }
+
+        function fillFormWithEmployeeData(empl_data) {
+            document.getElementById("info_first_name").value = empl_data.first_name
+            document.getElementById("info_last_name").value = empl_data.last_name
+            document.getElementById("info_position").value = empl_data.position
+            document.getElementById("info_employment_date").value = empl_data.employment_date
+            document.getElementById("info_salary").value = empl_data.salary
+        }
+
+
+        function selectEmployee(node) {
+            if (selection_enabled === false) {
+                return
+            }
+
+            let empl_id = node.getAttribute("node_id")
+            let empl_node_id = node.id
+
+            if (selected_empl !== null) {
+                prev_empl_id = getTreeNodeId(selected_empl)
+                document.querySelector(`#${prev_empl_id} > .node_title`).classList.remove("selected")
+            }
+            node.querySelector(".node_title").classList.add("selected")
+            selected_empl = empl_id
+
+            fillFormWithEmployeeData(employee_data[empl_id])
+        }
+
+        function createNode(container, child_data) {
+            let base_div = makeDiv("node")
+            base_div.id = `tree_node_${child_data.id}`
+            base_div.setAttribute("node_id", child_data.id)
+            container.appendChild(base_div)
+
+            let title_div = makeDiv("node_title")
+            title_div.innerHTML = `${child_data.first_name} ${child_data.last_name}, ${child_data.position}`
+            title_div.addEventListener("click", () => {
+                selectEmployee(base_div)
+            })
+            base_div.appendChild(title_div)
+
+            let subs_div = makeDiv("subnodes")
+            base_div.appendChild(subs_div)
+
+            if (child_data.hasOwnProperty("subordinates")) {
+                for (let sub of child_data.subordinates) {
+                    createNode(subs_div, sub)
+                }
+            }
+        }
+
+        function makeTreeData(data) {
+            function makeTreeDataInternal(top_element, data) {
+                let subordinates = []
+                let empl_ids = Object.keys(data)
+                for (empl_id of empl_ids) {
+                    if (data[empl_id].chief_id == top_element.id) {
+                        subordinates.push(data[empl_id])
+                        delete data[empl_id]
+                    }
+                }
+                if (subordinates.length > 0) {
+                    subordinates = subordinates.map((sub) => (makeTreeDataInternal(sub, data)))
+                    top_element.subordinates = subordinates
+                }
+
+                return top_element
+            }
+
+            let mapped_data = rowsToDictWithIds(deepcopy(data))
+            let top_chief = data.find((el) => (el.chief_id == null))
+            delete mapped_data[top_chief.id]
+
+            return makeTreeDataInternal(top_chief, mapped_data)
+        }
+
+        function getTitleForNode(node_id) {
+            data = employee_data[node_id]
+            return `${data.first_name} ${data.last_name}, ${data.position}`
+        }
+
+        function updateTreeNodeTitle(node_id) {
+            new_title = getTitleForNode(node_id)
+            tree_node_id = getTreeNodeId(node_id)
+            document.querySelector(`#${tree_node_id} > .node_title`).innerHTML = new_title
+        }
+
+        function updateEmployee(){
+            let empl_form = document.getElementById("employee_info")
+            let form_data = new FormData(empl_form)
+            let form_data_obj = formDataToDict(form_data)
+
+            fetch(`/employees/${selected_empl}`, {
+                method: 'PATCH',
+                body: JSON.stringify(form_data_obj)
+            }).then((response) => {
+                if (response.ok) {
+                    return response.json()
+                }
+                throw new Error("failed")
+            }).then((data) => {
+                employee_data[selected_empl] = data
+                fillFormWithEmployeeData(data)
+                updateTreeNodeTitle(selected_empl)
+                showSuccess("EMPLOYEE UPDATED")
+            }).catch((error) => {
+                showFailure("UPDATE FAILED")
+                let data = employee_data[selected_empl]
+                fillFormWithEmployeeData(data)
+            })
+        }
+
+        function startSubordinateAddingProcess() {
+            if (selected_empl == null) {
+                return
+            }
+            blockInterface()
+            new_sub_form.classList.remove("hidden_block")
+            new_sub_form.classList.add("shown_block")
+        }
+
+        function endSubrodinateAddingProcess() {
+            unblockInterface()
+            new_sub_form.reset()
+            new_sub_form.classList.add("hidden_block")
+            new_sub_form.classList.remove("shown_block")
+        }
+
+
+        function addSubordinate() {
+            let form_data = new FormData(new_sub_form)
+            let form_data_obj = formDataToDict(form_data)
+            form_data_obj.chief_id = selected_empl
+            fetch("/employees", {
+                method: "POST",
+                body: JSON.stringify([form_data_obj])
+            })
+            .then((response) => {
+                if (response.ok) {
+                    showSuccess("SUBORDINATE ADDED")
+                    endSubrodinateAddingProcess()
+                    return response.json()
+                }
+                throw new Error("failed")
+            })
+            .then((data) => {
+                console.log("response data: ")
+                console.log(data)
+                //employee_data[selected_empl] = data
+                //fillFormWithEmployeeData(data)
+            })
+            .catch((error) => {
+                showFailure("ADDING FAILED")
+                endSubrodinateAddingProcess()
+            })
+        }
+
+        (function init() {
+            employee_form.addEventListener("submit", (event) => {
+                event.preventDefault()
+                if(selected_empl == null) {
+                    return
+                }
+                updateEmployee()
+            })
+
+            let add_sub_button = document.getElementById("info_add_subordinates")
+            add_sub_button.addEventListener("click", startSubordinateAddingProcess)
+
+            new_sub_form.addEventListener("submit", (event) => {
+                event.preventDefault()
+                addSubordinate()
+            })
+            let cancel_new_sub_button = document.getElementById("new_sub_cancel")
+            cancel_new_sub_button.addEventListener("click", endSubrodinateAddingProcess)
+
+            let data = JSON.parse(`{{ data|safe }}`)
+            employee_data = rowsToDictWithIds(data)
+            let base_div = document.getElementById("tree_div")
+            let tree_data = makeTreeData(data)
+            createNode(base_div, tree_data)
+        })()
+    </script>
+<html>
