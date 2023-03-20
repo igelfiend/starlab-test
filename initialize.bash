@@ -4,3 +4,4 @@ docker-compose build
 docker-compose up -d db
 sleep 1
 docker-compose run starlab-test-app alembic upgrade head
+docker-compose run starlab-test-app python3 -m app.scripts.init_db
