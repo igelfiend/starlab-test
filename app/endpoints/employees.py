@@ -61,46 +61,6 @@ async def init(request: Request) -> Response:
     return json_response({"success": True})
 
 
-@employees_routes.get("/employees/{employee_id:\d+}")
-async def get_employee(request: Request) -> Response:
-    with Session() as session, session.begin():
-        employee: DbEmployee = session.query(DbEmployee).get(
-            request.match_info["employee_id"]
-        )
-        if not employee:
-            raise HTTPNotFound()
-        result = {
-            "first_name": employee.first_name,
-            "last_name": employee.last_name,
-            "employment_date": employee.employment_date.strftime("%Y-%m-%d"),
-            "salary": employee.salary,
-        }
-        return json_response(result)
-
-
-# should be removed
-@employees_routes.get("/employees/{employee_id:\d+}/subordinates")
-async def get_employee_subordinates(request: Request) -> Response:
-    with Session() as session, session.begin():
-        chief_id = request.match_info["employee_id"]
-        print(f"looking for subs for {chief_id}")
-        employee_subs: list[DbEmployee] = session.query(DbEmployee).filter(
-            DbEmployee.chief_id == chief_id
-        )
-
-        result = [
-            {
-                "id": employee.id,
-                "full_name": f"{employee.first_name} {employee.last_name}",
-                "position": employee.position,
-            }
-            for employee in employee_subs
-        ]
-        print(f"to response: {result}")
-
-        return json_response(result)
-
-
 @employees_routes.patch("/employees/{employee_id:\d+}")
 async def update_employee(request: Request) -> Response:
     with Session() as session, session.begin():
