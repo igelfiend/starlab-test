@@ -6,7 +6,7 @@ This application has tree, form with employee info and form with new subordinate
 
 Employees can be choosed via tree. If element is selected at will be highlighted with green background.
 
-Employee's info form allows to do edit stuff. To confirm changes is needed to press `Update`. Besides, it has `Ass subordinate` button that shows new employees form and freezes both tree and employee info form.
+Employee's info form allows to do edit stuff. To confirm changes is needed to press `Update`. Besides, it has `Add subordinate` button that shows new employees form and freezes both tree and employee info form. Be sure that you selected any of tree element to add a new one as subordinate. If you won't select anything then both `Add subordinate` and `Update` won't work.
 
 New employee form can be either cancled via `Cancel` button or confirmed by pressing `Save` button. In both cases this form will be hidden from user and tree and employee info form will be unfreezed.
 
